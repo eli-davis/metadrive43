@@ -1,3 +1,10 @@
+# B"H
+
+# python -m metadrive.pull_asset --update
+# python -m metadrive.examples.verify_headless_installation
+
+# see https://metadrive-simulator.readthedocs.io/en/latest/install.html
+
 <br>
 
 ![](documentation/source/figs/logo-horizon.png)
