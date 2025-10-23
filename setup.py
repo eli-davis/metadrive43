@@ -1,3 +1,7 @@
+# B"H
+
+# comment out numpy/cv2 to not break env
+
 # Please don't change the order of following packages!
 import os
 import sys
@@ -39,7 +43,7 @@ print("We will install the following packages: ", packages)
 install_requires = [
     "requests",
     "gymnasium>=0.28",
-    "numpy>=1.21.6",
+    ####"numpy>=1.21.6",
     "matplotlib",
     "pygame",
     "yapf",
@@ -50,7 +54,7 @@ install_requires = [
     "panda3d==1.10.13",
     "panda3d-gltf==0.13",  # 0.14 will bring some problems
     "pillow",
-    "opencv-python",
+    ####"opencv-python",
     "lxml",
     "scipy",
     "psutil",
