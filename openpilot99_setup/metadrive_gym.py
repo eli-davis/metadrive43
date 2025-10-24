@@ -217,11 +217,11 @@ class MetadriveGym():
         self.main_road_image = np.zeros((H, W, 3), dtype=np.uint8)
         self.wide_road_image = np.zeros((H, W, 3), dtype=np.uint8)
 
-        self.main_camera_array = Array(ctypes.c_uint8, W*H*3)
-        self.main_road_image = np.frombuffer(self.main_camera_array.get_obj(), dtype=np.uint8).reshape((H, W, 3))
+        #self.main_camera_array = Array(ctypes.c_uint8, W*H*3)
+        #self.main_road_image = np.frombuffer(self.main_camera_array.get_obj(), dtype=np.uint8).reshape((H, W, 3))
 
-        self.wide_camera_array = Array(ctypes.c_uint8, W*H*3)
-        self.wide_road_image = np.frombuffer(self.wide_camera_array.get_obj(), dtype=np.uint8).reshape((H, W, 3))
+        #self.wide_camera_array = Array(ctypes.c_uint8, W*H*3)
+        #self.wide_road_image = np.frombuffer(self.wide_camera_array.get_obj(), dtype=np.uint8).reshape((H, W, 3))
 
         sensors = dict()
         sensors["rgb_road"] = (RGBCameraRoad, W, H)
@@ -236,8 +236,8 @@ class MetadriveGym():
         config['use_render'] = BOOL_RENDER
 
         config['vehicle_config'] = dict()
-        config['vehicle_config']['enable_reverse'] = False,
-        config['vehicle_config']['render_vehicle'] = BOOL_RENDER,
+        config['vehicle_config']['enable_reverse'] = False
+        #config['vehicle_config']['render_vehicle'] = BOOL_RENDER
         config['vehicle_config']['image_source'] = "rgb_road"
 
         config['sensors'] = sensors
@@ -250,7 +250,6 @@ class MetadriveGym():
 
         config['crash_vehicle_done'] = False
         config['crash_object_done']  = False
-        config['arrive_dest_done']   = False
 
         # traffic is incredibly expensive
         config['traffic_density'] = 0.0
@@ -263,7 +262,6 @@ class MetadriveGym():
 
         config['preload_models'] = False
         config['show_logo'] = False
-        config['anisotropic_filtering'] = False
 
         # +++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
 
@@ -273,14 +271,14 @@ class MetadriveGym():
 
         self.env = MetaDriveEnv(config)
 
-        print(f"simulator delta_t in env.step() = {env.engine.global_config['physics_world_step_size']}")
-
-        for i in range(0, 40):
-            _, _, terminated, _, _ = self.env.step([0.0, 0.0])
+        self.lane_idx_prev = self.reset()
 
         # +++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
 
-        self.lane_idx_prev = self.reset()
+        print(f"simulator delta_t in env.step() = {self.env.engine.global_config['physics_world_step_size']}")
+
+        for i in range(0, 40):
+            _, _, terminated, _, _ = self.env.step([0.0, 0.0])
 
         # +++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
 
@@ -293,7 +291,7 @@ class MetadriveGym():
     def reset(self):
         self.env.reset()
         self.env.vehicle.config["max_speed_km_h"] = 1000
-        lane_idx_prev, _ = self.get_current_lane_info(self.env.vehicle)
+        lane_idx_prev, _ = self.get_current_lane_info()
         return lane_idx_prev
 
     def get_cam_as_rgb(self, camera_str):
@@ -340,8 +338,10 @@ class MetadriveGym():
         bool_out_of_lane = lane_idx_curr != self.lane_idx_prev or not on_lane
         self.lane_idx_prev = lane_idx_curr
 
-        main_road_image[...] = self.get_cam_as_rgb("rgb_road")
-        wide_road_image[...] = self.get_cam_as_rgb("rgb_wide")
+        # get_cam_as_rgb() returns a NEW array
+        # main_road_image[...] = get_cam_as_rgb --> copies that data INTO the pre-allocated buffer
+        self.main_road_image[...] = self.get_cam_as_rgb("rgb_road")
+        self.wide_road_image[...] = self.get_cam_as_rgb("rgb_wide")
 
         vehicle_state = metadrive_vehicle_state(
             velocity=vec3(x=float(self.env.vehicle.velocity[0]), y=float(self.env.vehicle.velocity[1]), z=0),
@@ -391,7 +391,7 @@ def run_metadrive():
         elif action == "LEFT":
             steer_manual = -0.15
 
-        elif action == "RIGHT"":
+        elif action == "RIGHT":
             steer_manual = 0.15
 
         else:
