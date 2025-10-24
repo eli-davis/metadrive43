@@ -11,6 +11,8 @@ import sys
 import math
 import numpy as np
 
+from termcolor import cprint as print_in_color
+
 sys.path.insert(0, "/home/deepview/SSD/pathfinder/software2/metadrive43/openpilot99_setup")
 import get_char
 
@@ -33,10 +35,6 @@ W, H = 1928, 1208
 
 # based on openpilot 0.9.9
 # --> openpilot/tools/sim/bridge/metadrive/metadrive_process.py
-
-import math
-import time
-import numpy as np
 
 from collections import namedtuple
 from panda3d.core import Vec3
@@ -191,17 +189,6 @@ class RGBCameraRoad(CopyRamRGBCamera):
 
 import ctypes
 import functools
-#import multiprocessing
-import numpy as np
-import time
-
-#from multiprocessing import Pipe, Array
-
-#from openpilot.tools.sim.bridge.common import QueueMessage, QueueMessageType
-#from openpilot.tools.sim.bridge.metadrive.metadrive_process import (metadrive_process, metadrive_simulation_state,
-#                                                                   metadrive_vehicle_state)
-#from openpilot.tools.sim.lib.common import SimulatorState, World
-#from openpilot.tools.sim.lib.camerad import W, H
 
 
 class MetadriveGym():
@@ -361,8 +348,6 @@ class MetadriveGym():
 
 
 
-
-
 def run_metadrive():
 
     # +++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
@@ -421,6 +406,11 @@ def run_metadrive():
 
         print("STEP")
 
+        print(f"vehicle_state={vehicle_state}")
+        print(f"main_road_image shape={main_road_image.shape} dtype={main_road_image.dtype} avg={np.mean(main_road_image)}")
+        print(f"wide_road_image shape={wide_road_image.shape} dtype={wide_road_image.dtype} avg={np.mean(wide_road_image)}")
+
+        print_in_color(f"bool_out_of_lane={bool_out_of_lane}", "yellow")
 
 
 if __name__ == "__main__":
