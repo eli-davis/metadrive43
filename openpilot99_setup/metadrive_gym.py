@@ -284,7 +284,7 @@ class MetadriveGym():
 
 
     def get_current_lane_info(self):
-        _, lane_info, on_lane = self.env.vehicle.navigation._get_current_lane(vehicle)
+        _, lane_info, on_lane = self.env.vehicle.navigation._get_current_lane(self.env.vehicle)
         lane_idx = lane_info[2] if lane_info is not None else None
         return lane_idx, on_lane
 
@@ -328,13 +328,13 @@ class MetadriveGym():
         # +++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
 
         if bool_reset:
-            self.lane_idx_prev = reset()
+            self.lane_idx_prev = self.reset()
 
         _, _, terminated, _, _ = self.env.step(vc)
 
         # +++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
 
-        lane_idx_curr, on_lane = get_current_lane_info()
+        lane_idx_curr, on_lane = self.get_current_lane_info()
         bool_out_of_lane = lane_idx_curr != self.lane_idx_prev or not on_lane
         self.lane_idx_prev = lane_idx_curr
 
@@ -350,7 +350,7 @@ class MetadriveGym():
             steering_angle=self.env.vehicle.steering * self.env.vehicle.MAX_STEERING
         )
 
-        return vehicle_state, main_road_image, wide_road_image, bool_out_of_lane
+        return vehicle_state, self.main_road_image, self.wide_road_image, bool_out_of_lane
 
 
 # __________________________________________________________________________ #
@@ -417,7 +417,7 @@ def run_metadrive():
         #    brake_out = np.clip(-self.simulated_car.sm['carControl'].actuators.accel / 4.0, 0.0, 1.0)
         #    steer_out = self.simulated_car.sm['carControl'].actuators.steeringAngleDeg
 
-        vehicle_state, main_road_image, wide_road_image, bool_out_of_lane = metadrive_gym.step(steer_out, throttle_out, brake_out)
+        vehicle_state, main_road_image, wide_road_image, bool_out_of_lane = metadrive_gym.step(steer_out, throttle_out, brake_out, bool_reset=False)
 
         print("STEP")
 
