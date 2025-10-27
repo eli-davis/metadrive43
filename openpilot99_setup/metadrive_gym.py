@@ -13,8 +13,9 @@ import numpy as np
 
 from termcolor import cprint as print_in_color
 
-sys.path.insert(0, "/home/deepview/SSD/pathfinder/software2/metadrive43/openpilot99_setup")
-import get_char
+#sys.path.insert(0, "/home/deepview/SSD/pathfinder/software2/metadrive43/openpilot99_setup")
+#import get_char
+import keyboard
 
 #from multiprocessing import Queue
 
@@ -260,6 +261,13 @@ class MetadriveGym():
 
         self.lane_idx_prev = self.reset()
 
+        # (trying to get the virtual camera not to move)
+        if BOOL_RENDER:
+            self.env.engine.disable_mouse() # Disables mouse control
+            #self.env.engine.camera.reparentTo(self.env.vehicle.origin)
+            #self.env.engine.camera.setPos(C3_POSITION)
+            #self.env.engine.camera.setHpr(C3_HPR)
+
         # +++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
 
         print(f"simulator delta_t in env.step() = {self.env.engine.global_config['physics_world_step_size']}")
@@ -301,8 +309,8 @@ class MetadriveGym():
 
         vc = [0.0, 0.0]
 
-        steer_ratio = 15
-        steer_metadrive = steer_angle * 1 / (self.env.vehicle.MAX_STEERING * steer_ratio)
+        #steer_ratio = 8
+        steer_metadrive = steer_angle * 1 / (self.env.vehicle.MAX_STEERING ) # * steer_ratio)
         steer_metadrive = np.clip(steer_metadrive, -1, 1)
 
         vc[0] = steer_metadrive
@@ -359,12 +367,40 @@ def run_metadrive():
     bool_manual = True
 
     while True:
-        # Read manual controls
-        action = get_char.get_char()
 
         throttle_manual = 0.0
         brake_manual = 0.0
         steer_manual = 0.0
+
+        # --- REPLACED LOGIC ---
+        # Change from if/elif to separate 'if' statements
+
+        # (1) this allows combined moves such as up+left
+        # (2) also now running continuous vs awaiting key presses
+
+        if keyboard.is_pressed("up"):
+            throttle_manual = 1.0
+
+        if keyboard.is_pressed("down"):
+            brake_manual = 1.0
+
+        if keyboard.is_pressed("left"):
+            # replace -0.15 * -40
+            steer_manual = 6
+
+        if keyboard.is_pressed("right"):
+            # replace 0.15 * -40
+            steer_manual = -6
+
+        # Add a way to quit
+        if keyboard.is_pressed("x"):
+            print("exitting...")
+            break
+
+        # --- END REPLACED LOGIC ---
+        '''
+        # Read manual controls
+        action = get_char.get_char()
 
         # based on https://github.com/commaai/openpilot/blob/v0.9.9/tools/sim/lib/keyboard_ctrl.py
         if action == "UP":
@@ -381,6 +417,7 @@ def run_metadrive():
 
         else:
             pass
+        '''
 
         '''
         # CarState from these values?
@@ -392,7 +429,7 @@ def run_metadrive():
         '''
 
         if bool_manual:
-            steer_out = steer_manual * -40
+            steer_out = steer_manual
             throttle_out =  throttle_manual
             brake_out = brake_manual
 
