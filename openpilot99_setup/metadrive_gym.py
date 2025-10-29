@@ -2,6 +2,8 @@
 
 BOOL_RENDER = True
 
+BOOL_WRITE_SHARED_MEM = True
+
 # based on openpilot 0.9.9
 # --> openpilot/tools/sim/bridge/metadrive/metadrive_bridge.py
 
@@ -17,15 +19,14 @@ from termcolor import cprint as print_in_color
 #import get_char
 import keyboard
 
-#from multiprocessing import Queue
+sys.path.insert(0, "/home/deepview/SSD/pathfinder/software2/shared_mem")
+from camera_shared_memory_array import CameraSharedMemoryArray_BGRA
+
+sys.path.insert(0, "/home/deepview/SSD/pathfinder/software2/user_interface")
+from replay_drive import EasyInference
 
 from metadrive.component.sensors.base_camera import _cuda_enable
 from metadrive.component.map.pg_map import MapGenerateMethod
-
-#from openpilot.tools.sim.bridge.common import SimulatorBridge
-
-#sys.path.insert(0, "/home/deepview/SSD/pathfinder/software2/metadrive43/openpilot99_setup")
-#from metadrive_world import MetaDriveWorld
 
 W, H = 1928, 1208
 
@@ -39,14 +40,12 @@ W, H = 1928, 1208
 
 from collections import namedtuple
 from panda3d.core import Vec3
-#from multiprocessing.connection import Connection
 
 from metadrive.engine.core.engine_core import EngineCore
 from metadrive.engine.core.image_buffer import ImageBuffer
 from metadrive.envs.metadrive_env import MetaDriveEnv
 from metadrive.obs.image_obs import ImageObservation
 
-#from openpilot.common.realtime import Ratekeeper
 
 vec3 = namedtuple("vec3", ["x", "y", "z"])
 
@@ -362,9 +361,15 @@ def run_metadrive():
 
     metadrive_gym = MetadriveGym()
 
+
+    shared_mem_camera_bgra = CameraSharedMemoryArray_BGRA(bool_create=True, service_name="metadrive_gym")
+
+    inference_helper = EasyInference()
+
     # +++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
 
     bool_manual = True
+    frame_i = 0
 
     while True:
 
@@ -448,6 +453,31 @@ def run_metadrive():
         print(f"wide_road_image shape={wide_road_image.shape} dtype={wide_road_image.dtype} avg={np.mean(wide_road_image)}")
 
         print_in_color(f"bool_out_of_lane={bool_out_of_lane}", "yellow")
+
+        # +++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
+
+        vEgo = math.sqrt(vehicle_state.velocity.x**2 + vehicle_state.velocity.y**2)
+        car_state_dict = { "vEgo": vEgo, "steeringAngleDeg": vehicle_state.steering_angle }
+
+        # --- Create a copy for overlay drawing ---
+        #display_image = main_road_image.copy() # Overlays are drawn on this
+
+        # 4. Call EasyInference OpenPilot Cameras Method
+        inf_start = time.time()
+        model_output_array = None # Default
+
+        model_output_array = inference_helper.run_inference_openpilot_cameras(main_road_image, wide_road_image, frame_i, vEgo, car_state_dict)
+
+        # Convert final display image (with overlays) to RGBA
+        rgba_frame = cv2.cvtColor(display_image, cv2.COLOR_RGB2RGBA)
+        shared_mem_rgba.write(rgba_frame, frame_i)
+        shared_mem_model.write(model_output_array.astype(np.float16), frame_i)
+
+        print(f"STEP {frame_i}: Vel={vEgo*2.23:.1f} MPH, Steer={vehicle_state.steering_angle:.1f} deg")
+
+        # +++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
+
+        frame_i += 1
 
 
 if __name__ == "__main__":
