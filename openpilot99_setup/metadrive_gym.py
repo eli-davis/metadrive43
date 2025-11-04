@@ -15,13 +15,15 @@ import numpy as np
 
 from termcolor import cprint as print_in_color
 
+import cv2
+
 #sys.path.insert(0, "/home/deepview/SSD/pathfinder/software2/metadrive43/openpilot99_setup")
 #import get_char
 import keyboard
 
 sys.path.insert(0, "/home/deepview/SSD/pathfinder/software2/shared_mem")
 from camera_shared_memory_array import CameraSharedMemoryArray_BGRA
-
+from model_output_shared_memory_array import ModelOutputSharedMemoryArray
 sys.path.insert(0, "/home/deepview/SSD/pathfinder/software2/user_interface")
 from replay_drive import EasyInference
 
@@ -363,6 +365,7 @@ def run_metadrive():
 
 
     shared_mem_camera_bgra = CameraSharedMemoryArray_BGRA(bool_create=True, service_name="metadrive_gym")
+    shared_mem_model = ModelOutputSharedMemoryArray(bool_create=True, service_name="metadrive_gym")
 
     inference_helper = EasyInference()
 
@@ -457,7 +460,15 @@ def run_metadrive():
         # +++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
 
         vEgo = math.sqrt(vehicle_state.velocity.x**2 + vehicle_state.velocity.y**2)
-        car_state_dict = { "vEgo": vEgo, "steeringAngleDeg": vehicle_state.steering_angle }
+
+        # set cruise speed to 20 m/s (45 mph)
+        car_state_dict = { "vEgo": vEgo,
+                           "steeringAngleDeg": vehicle_state.steering_angle,
+                           "vCruise": 20.0,
+                           "standstill": bool(vEgo < 1.0),  # <--- ADD THIS LINE (True if speed is near zero)
+                           "brakePressed": bool(brake_manual >= 0.1),  # <--- ADD THIS LINE
+                           "cruiseState": {"enabled": True, "standstill": bool(vEgo < 1.0), },  # <--- ADD THIS LINE
+        }
 
         # --- Create a copy for overlay drawing ---
         #display_image = main_road_image.copy() # Overlays are drawn on this
@@ -466,11 +477,20 @@ def run_metadrive():
         inf_start = time.time()
         model_output_array = None # Default
 
-        model_output_array = inference_helper.run_inference_openpilot_cameras(main_road_image, wide_road_image, frame_i, vEgo, car_state_dict)
+        CarControl_output, model_output_array = inference_helper.run_inference_openpilot_cameras(main_road_image, wide_road_image, frame_i, vEgo, car_state_dict)
+
+        # ++++++++++++++++++++++++++++++++++++++++++++++
+        # Check if the result is None (which happens during buffer warmup)
+        if CarControl_output is None:
+            print_in_color(f"STEP {frame_i}: Skipping frame, model buffers are warming up.", "cyan")
+            frame_i += 1
+            continue
+        # ++++++++++++++++++++++++++++++++++++++++++++++
 
         # Convert final display image (with overlays) to RGBA
-        rgba_frame = cv2.cvtColor(display_image, cv2.COLOR_RGB2RGBA)
-        shared_mem_rgba.write(rgba_frame, frame_i)
+        bgr = cv2.cvtColor(main_road_image, cv2.COLOR_RGB2BGR)
+        bgra_frame = cv2.cvtColor(bgr, cv2.COLOR_RGB2RGBA)
+        shared_mem_camera_bgra.write(bgra_frame, frame_i)
         shared_mem_model.write(model_output_array.astype(np.float16), frame_i)
 
         print(f"STEP {frame_i}: Vel={vEgo*2.23:.1f} MPH, Steer={vehicle_state.steering_angle:.1f} deg")
