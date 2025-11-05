@@ -1,5 +1,6 @@
 # B"H
 
+
 BOOL_RENDER = True
 
 BOOL_WRITE_SHARED_MEM = True
@@ -20,6 +21,14 @@ import cv2
 #sys.path.insert(0, "/home/deepview/SSD/pathfinder/software2/metadrive43/openpilot99_setup")
 #import get_char
 import keyboard
+
+# __________________________________________________________________________ #
+# __________________________________________________________________________ #
+
+sys.path.insert(0, "/home/deepview/SSD/pathfinder/software2")
+import camera_db
+
+camera_db.setup_metadrive()
 
 # __________________________________________________________________________ #
 # __________________________________________________________________________ #
@@ -138,11 +147,11 @@ def create_map(track_size=60):
         lane_width=4.5,
         config=[
             None,
-            straight_block(track_size),
+            straight_block(track_size*4),
             curve_block(curve_len, 90),
             straight_block(track_size),
             curve_block(curve_len, 90),
-            straight_block(track_size),
+            straight_block(track_size*4),
             curve_block(curve_len, 90),
             straight_block(track_size),
             curve_block(curve_len, 90),
@@ -160,7 +169,9 @@ def create_map(track_size=60):
 from metadrive.component.sensors.rgb_camera import RGBCamera
 from panda3d.core import Texture, GraphicsOutput
 
-
+#
+# actually bgr!!!!
+#
 class CopyRamRGBCamera(RGBCamera):
     """Camera which copies its content into RAM during the render process, for faster image grabbing."""
     def __init__(self, *args, **kwargs):
@@ -174,8 +185,15 @@ class CopyRamRGBCamera(RGBCamera):
         img = img.reshape((origin_img.getYSize(), origin_img.getXSize(), -1))
         img = img[:,:,:3] # RGBA to RGB
         # img = np.swapaxes(img, 1, 0)
-        img = img[::-1] # Flip on vertical axis
-        return img
+
+        # img is upside down, so flip it
+        img = img[::-1]
+
+        # panda3d stores BGR
+        rgb = cv2.cvtColor(img, cv2.COLOR_RGB2BGR)
+
+        #cv2.imwrite("img0.bmp", rgb)
+        return rgb
 
 
 class RGBCameraWide(CopyRamRGBCamera):
@@ -466,6 +484,9 @@ def run_metadrive():
 
         vehicle_state, main_road_image, wide_road_image, bool_out_of_lane = metadrive_gym.step(steer_out, throttle_out, brake_out, bool_reset=False)
 
+
+        #cv2.imwrite("img1.bmp", main_road_image)
+
         print("STEP")
 
         print(f"vehicle_state={vehicle_state}")
@@ -511,6 +532,8 @@ def run_metadrive():
             continue
         # ++++++++++++++++++++++++++++++++++++++++++++++
 
+        #cv2.imwrite("img2.bmp", main_road_image)
+
         # Convert final display image (with overlays) to RGBA
         rgba_frame = cv2.cvtColor(main_road_image, cv2.COLOR_RGB2RGBA)
         shared_mem_camera_rgba.write(rgba_frame, frame_i)
@@ -521,6 +544,8 @@ def run_metadrive():
         # +++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
 
         frame_i += 1
+
+        #os._exit(0)
 
 
 if __name__ == "__main__":
