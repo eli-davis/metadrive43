@@ -21,11 +21,22 @@ import cv2
 #import get_char
 import keyboard
 
+# __________________________________________________________________________ #
+# __________________________________________________________________________ #
+
 sys.path.insert(0, "/home/deepview/SSD/pathfinder/software2/shared_mem")
-from camera_shared_memory_array import CameraSharedMemoryArray_BGRA
+from camera_shared_memory_array import CameraViewerSharedMemoryArray_RGBA
 from model_output_shared_memory_array import ModelOutputSharedMemoryArray
+
+# __________________________________________________________________________ #
+# __________________________________________________________________________ #
+
+
 sys.path.insert(0, "/home/deepview/SSD/pathfinder/software2/user_interface")
 from replay_drive import EasyInference
+
+# __________________________________________________________________________ #
+# __________________________________________________________________________ #
 
 from metadrive.component.sensors.base_camera import _cuda_enable
 from metadrive.component.map.pg_map import MapGenerateMethod
@@ -364,7 +375,7 @@ def run_metadrive():
     metadrive_gym = MetadriveGym()
 
 
-    shared_mem_camera_bgra = CameraSharedMemoryArray_BGRA(bool_create=True, service_name="metadrive_gym")
+    shared_mem_camera_rgba = CameraViewerSharedMemoryArray_RGBA(bool_create=True, service_name="metadrive_gym")
     shared_mem_model = ModelOutputSharedMemoryArray(bool_create=True, service_name="metadrive_gym")
 
     inference_helper = EasyInference()
@@ -373,6 +384,12 @@ def run_metadrive():
 
     bool_manual = True
     frame_i = 0
+
+    # === ACCELERATION ===
+    # Initialize variables to calculate acceleration (aEgo)
+    prev_vEgo = 0.0
+    delta_t = 0.05  # This must match 'physics_world_step_size' from your config
+    # ====================
 
     while True:
 
@@ -461,8 +478,15 @@ def run_metadrive():
 
         vEgo = math.sqrt(vehicle_state.velocity.x**2 + vehicle_state.velocity.y**2)
 
+        # === START FIX ===
+        # Calculate current acceleration
+        aEgo = (vEgo - prev_vEgo) / delta_t
+        prev_vEgo = vEgo
+        # === END FIX ===
+
         # set cruise speed to 20 m/s (45 mph)
         car_state_dict = { "vEgo": vEgo,
+                           "aEgo": aEgo,
                            "steeringAngleDeg": vehicle_state.steering_angle,
                            "vCruise": 20.0,
                            "standstill": bool(vEgo < 1.0),  # <--- ADD THIS LINE (True if speed is near zero)
@@ -488,9 +512,8 @@ def run_metadrive():
         # ++++++++++++++++++++++++++++++++++++++++++++++
 
         # Convert final display image (with overlays) to RGBA
-        bgr = cv2.cvtColor(main_road_image, cv2.COLOR_RGB2BGR)
-        bgra_frame = cv2.cvtColor(bgr, cv2.COLOR_RGB2RGBA)
-        shared_mem_camera_bgra.write(bgra_frame, frame_i)
+        rgba_frame = cv2.cvtColor(main_road_image, cv2.COLOR_RGB2RGBA)
+        shared_mem_camera_rgba.write(rgba_frame, frame_i)
         shared_mem_model.write(model_output_array.astype(np.float16), frame_i)
 
         print(f"STEP {frame_i}: Vel={vEgo*2.23:.1f} MPH, Steer={vehicle_state.steering_angle:.1f} deg")
