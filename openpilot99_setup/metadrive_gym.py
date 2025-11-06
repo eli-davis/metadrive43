@@ -400,7 +400,7 @@ def run_metadrive():
 
     # +++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
 
-    bool_manual = True
+    bool_manual = False
     frame_i = 0
 
     # === ACCELERATION ===
@@ -408,6 +408,8 @@ def run_metadrive():
     prev_vEgo = 0.0
     delta_t = 0.05  # This must match 'physics_world_step_size' from your config
     # ====================
+
+    CarControl_output = None
 
     while True:
 
@@ -471,19 +473,33 @@ def run_metadrive():
         self.simulator_state.user_torque = steer_manual * -10000
         '''
 
+        # _______________________________________________________
+        # _______________________________________________________
+
         if bool_manual:
             steer_out = steer_manual
             throttle_out =  throttle_manual
             brake_out = brake_manual
+        else:
+            # Use the CarControl_output from the PREVIOUS frame
+            if CarControl_output is None:
+                # First frame, do nothing
+                steer_out = 0.0
+                throttle_out = 0.0
+                brake_out = 0.0
+            else:
+                # Get actuators from the previous frame's OpenPilot calculation
+                steer_out = CarControl_output.actuators.steeringAngleDeg
+                accel = CarControl_output.actuators.accel
 
-        # todo: auto
-        #else:
-        #    throttle_out = np.clip(self.simulated_car.sm['carControl'].actuators.accel / 1.6, 0.0, 1.0)
-        #    brake_out = np.clip(-self.simulated_car.sm['carControl'].actuators.accel / 4.0, 0.0, 1.0)
-        #    steer_out = self.simulated_car.sm['carControl'].actuators.steeringAngleDeg
+                # Convert OpenPilot accel to throttle/brake
+                throttle_out = np.clip(accel / 1.6, 0.0, 1.0)
+                brake_out = np.clip(-accel / 4.0, 0.0, 1.0)
 
         vehicle_state, main_road_image, wide_road_image, bool_out_of_lane = metadrive_gym.step(steer_out, throttle_out, brake_out, bool_reset=False)
 
+        # _______________________________________________________
+        # _______________________________________________________
 
         #cv2.imwrite("img1.bmp", main_road_image)
 
