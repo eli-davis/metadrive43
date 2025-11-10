@@ -159,11 +159,20 @@ def create_map(track_size=60):
         config=[
             None,
             straight_block(track_size*4),
+
             curve_block(curve_len, 90),
+
             straight_block(track_size),
+
             curve_block(curve_len, 90),
-            straight_block(track_size*4),
+
+            straight_block(track_size),
+            straight_block(track_size),
+            straight_block(track_size),
+            straight_block(track_size),
+
             curve_block(curve_len, 90),
+
             straight_block(track_size),
             curve_block(curve_len, 90),
         ]
@@ -689,8 +698,17 @@ def run_metadrive2():
                 y = agent_lane.center[1] + agent_lane.radius * math.sin(phase)
                 agent_centerline_points.append((x, y))
         elif isinstance(agent_lane, StraightLane):
-            # For straights, we just get the start and end
-            agent_centerline_points = [agent_lane.start, agent_lane.end]
+            # FIX: For straights, we must manually sample points
+            agent_centerline_points = []
+            num_segments = 20 # Same as the curve
+            start = agent_lane.start
+            end = agent_lane.end
+            for i in range(num_segments + 1):
+                t = i / num_segments
+                x = start[0] + (end[0] - start[0]) * t
+                y = start[1] + (end[1] - start[1]) * t
+                agent_centerline_points.append((x, y))
+
 
         if agent_centerline_points is not None and len(agent_centerline_points) > 1:
             car_x_world = vehicle_state.position[0]
@@ -712,8 +730,10 @@ def run_metadrive2():
                 x_fwd = dx * cos_h + dy * sin_h
                 y_left = dx * sin_h - dy * cos_h
 
-                path_x_fwd.append(x_fwd)
-                path_y_left.append(y_left)
+                # FIX: Only add points that are IN FRONT of the car
+                if x_fwd > 0:
+                    path_x_fwd.append(x_fwd)
+                    path_y_left.append(y_left)
 
             # Use run_planner.simulate_object (which is just a dict wrapper)
             # to create a path object that ui_helpers.plot_model can understand
