@@ -43,12 +43,23 @@ from model_output_shared_memory_array import ModelOutputSharedMemoryArray
 
 sys.path.insert(0, "/home/deepview/SSD/pathfinder/software2/user_interface")
 from replay_drive import EasyInference
+from ui_overlay import UI_Overlay
+import ui_helpers
+
+# __________________________________________________________________________ #
+# __________________________________________________________________________ #
+
+# Import for the ground-truth path object
+sys.path.insert(0, "/home/deepview/SSD/pathfinder/software2/openpilot99")
+import run_planner
 
 # __________________________________________________________________________ #
 # __________________________________________________________________________ #
 
 from metadrive.component.sensors.base_camera import _cuda_enable
 from metadrive.component.map.pg_map import MapGenerateMethod
+from metadrive.component.lane.straight_lane import StraightLane
+from metadrive.component.lane.circular_lane import CircularLane
 
 W, H = 1928, 1208
 
@@ -75,7 +86,7 @@ C3_POSITION = Vec3(0.0, 0, 1.22)
 C3_HPR = Vec3(0, 0,0)
 
 metadrive_simulation_state = namedtuple("metadrive_simulation_state", ["running", "done", "done_info"])
-metadrive_vehicle_state = namedtuple("metadrive_vehicle_state", ["velocity", "position", "bearing", "steering_angle"])
+metadrive_vehicle_state = namedtuple("metadrive_vehicle_state", ["velocity", "position", "bearing", "steering_angle", "heading_theta"])
 
 def apply_metadrive_patches(bool_continuous_loop=True):
 
@@ -303,7 +314,7 @@ class MetadriveGym():
         print(f"simulator delta_t in env.step() = {self.env.engine.global_config['physics_world_step_size']}")
 
         for i in range(0, 40):
-            _, _, terminated, _, _ = self.env.step([0.0, 0.0])
+            _, _, terminated, _, info = self.env.step([0.0, 0.0])
 
         # +++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
 
@@ -355,7 +366,7 @@ class MetadriveGym():
         if bool_reset:
             self.lane_idx_prev = self.reset()
 
-        _, _, terminated, _, _ = self.env.step(vc)
+        _, _, terminated, _, info = self.env.step(vc)
 
         # +++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
 
@@ -372,7 +383,8 @@ class MetadriveGym():
             velocity=vec3(x=float(self.env.vehicle.velocity[0]), y=float(self.env.vehicle.velocity[1]), z=0),
             position=self.env.vehicle.position,
             bearing=float(math.degrees(self.env.vehicle.heading_theta)),
-            steering_angle=self.env.vehicle.steering * self.env.vehicle.MAX_STEERING
+            steering_angle=self.env.vehicle.steering * self.env.vehicle.MAX_STEERING,
+            heading_theta=float(self.env.vehicle.heading_theta)
         )
 
         return vehicle_state, self.main_road_image, self.wide_road_image, bool_out_of_lane
@@ -385,7 +397,7 @@ class MetadriveGym():
 
 
 
-
+'''
 def run_metadrive():
 
     # +++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
@@ -400,7 +412,7 @@ def run_metadrive():
 
     # +++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
 
-    bool_manual = False
+    #bool_manual = False
     frame_i = 0
 
     # === ACCELERATION ===
@@ -443,58 +455,62 @@ def run_metadrive():
             break
 
         # --- END REPLACED LOGIC ---
-        '''
+
         # Read manual controls
-        action = get_char.get_char()
-
+        #action = get_char.get_char()
+        #
         # based on https://github.com/commaai/openpilot/blob/v0.9.9/tools/sim/lib/keyboard_ctrl.py
-        if action == "UP":
-            throttle_manual = 1.0
+        #if action == "UP":
+        #    throttle_manual = 1.0
+        #
+        #elif action == "DOWN":
+        #    brake_manual = 1.0
+        #
+        #elif action == "LEFT":
+        #    steer_manual = -0.15
+        #
+        #elif action == "RIGHT":
+        #    steer_manual = 0.15
+        #
+        #else:
+        #    pass
 
-        elif action == "DOWN":
-            brake_manual = 1.0
-
-        elif action == "LEFT":
-            steer_manual = -0.15
-
-        elif action == "RIGHT":
-            steer_manual = 0.15
-
-        else:
-            pass
-        '''
-
-        '''
         # CarState from these values?
         # see simulated_car.py
 
-        self.simulator_state.user_brake = brake_manual
-        self.simulator_state.user_gas = throttle_manual
-        self.simulator_state.user_torque = steer_manual * -10000
-        '''
+        #self.simulator_state.user_brake = brake_manual
+        #self.simulator_state.user_gas = throttle_manual
+        #self.simulator_state.user_torque = steer_manual * -10000
 
         # _______________________________________________________
         # _______________________________________________________
 
-        if bool_manual:
-            steer_out = steer_manual
-            throttle_out =  throttle_manual
-            brake_out = brake_manual
-        else:
+        #if bool_manual:
+        steer_out = steer_manual
+        throttle_out =  throttle_manual
+        brake_out = brake_manual
+        #else:
+        if True:
             # Use the CarControl_output from the PREVIOUS frame
             if CarControl_output is None:
                 # First frame, do nothing
-                steer_out = 0.0
-                throttle_out = 0.0
-                brake_out = 0.0
+                #steer_out = 0.0
+                #throttle_out = 0.0
+                #brake_out = 0.0
+                pass
             else:
+                print(f"OpenPilot accel command: {CarControl_output.actuators.accel:.2f} m/s²")
+
                 # Get actuators from the previous frame's OpenPilot calculation
-                steer_out = CarControl_output.actuators.steeringAngleDeg
+                #steer_out = CarControl_output.actuators.steeringAngleDeg
                 accel = CarControl_output.actuators.accel
 
                 # Convert OpenPilot accel to throttle/brake
-                throttle_out = np.clip(accel / 1.6, 0.0, 1.0)
-                brake_out = np.clip(-accel / 4.0, 0.0, 1.0)
+                #if throttle_manual:
+                #throttle_out = throttle_manual
+                #else:
+                #    throttle_out = np.clip(accel / 1.6, 0.0, 1.0)
+                #brake_out = np.clip(-accel / 4.0, 0.0, 1.0)
 
         vehicle_state, main_road_image, wide_road_image, bool_out_of_lane = metadrive_gym.step(steer_out, throttle_out, brake_out, bool_reset=False)
 
@@ -503,13 +519,13 @@ def run_metadrive():
 
         #cv2.imwrite("img1.bmp", main_road_image)
 
-        print("STEP")
+        #print("STEP")
 
-        print(f"vehicle_state={vehicle_state}")
-        print(f"main_road_image shape={main_road_image.shape} dtype={main_road_image.dtype} avg={np.mean(main_road_image)}")
-        print(f"wide_road_image shape={wide_road_image.shape} dtype={wide_road_image.dtype} avg={np.mean(wide_road_image)}")
+        #print(f"vehicle_state={vehicle_state}")
+        #print(f"main_road_image shape={main_road_image.shape} dtype={main_road_image.dtype} avg={np.mean(main_road_image)}")
+        #print(f"wide_road_image shape={wide_road_image.shape} dtype={wide_road_image.dtype} avg={np.mean(wide_road_image)}")
 
-        print_in_color(f"bool_out_of_lane={bool_out_of_lane}", "yellow")
+        #print_in_color(f"bool_out_of_lane={bool_out_of_lane}", "yellow")
 
         # +++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
 
@@ -525,7 +541,7 @@ def run_metadrive():
         car_state_dict = { "vEgo": vEgo,
                            "aEgo": aEgo,
                            "steeringAngleDeg": vehicle_state.steering_angle,
-                           "vCruise": 20.0,
+                           "vCruise": 100.0, #km/h?
                            "standstill": bool(vEgo < 1.0),  # <--- ADD THIS LINE (True if speed is near zero)
                            "brakePressed": bool(brake_manual >= 0.1),  # <--- ADD THIS LINE
                            "cruiseState": {"enabled": True, "standstill": bool(vEgo < 1.0), },  # <--- ADD THIS LINE
@@ -562,7 +578,203 @@ def run_metadrive():
         frame_i += 1
 
         #os._exit(0)
+'''
 
+# __________________________________________________________________________ #
+# __________________________________________________________________________ #
+
+
+def run_metadrive2():
+    """
+    Runs the Metadrive simulation with manual keyboard controls
+    and overlays the ground-truth centerline and navigation data
+    from the simulator itself, ignoring all OpenPilot model predictions.
+    """
+
+    print_in_color("Starting run_metadrive2() for control debugging...", "green")
+    print_in_color("Controls: [Up] Gas, [Down] Brake, [Left] Steer Left, [Right] Steer Right, [x] Exit", "cyan")
+
+    # +++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
+    # 1. Initialize Gym, UI, and Shared Memory
+    # +++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
+
+    metadrive_gym = MetadriveGym()
+
+    # We only need the camera shared memory to send images to display_video.py
+    shared_mem_camera_rgba = CameraViewerSharedMemoryArray_RGBA(bool_create=True, service_name="metadrive_gym")
+
+    # We need the UI overlay to draw the path and text
+    ui_overlay = UI_Overlay()
+
+    # +++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
+    # 2. Initialize Loop Variables
+    # +++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
+
+    frame_i = 0
+
+    # For calculating acceleration (aEgo)
+    prev_vEgo = 0.0
+    # Get delta_t from the simulator config to be precise
+    delta_t = metadrive_gym.env.engine.global_config['physics_world_step_size']
+
+    # +++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
+    # 3. Run Simulation Loop
+    # +++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
+
+    while True:
+
+        # --- Read Keyboard Input ---
+        throttle_manual = 0.0
+        brake_manual = 0.0
+        steer_manual = 0.0 # This is in degrees (for our controls)
+
+        if keyboard.is_pressed("up"):
+            throttle_manual = 1.0
+
+        if keyboard.is_pressed("down"):
+            brake_manual = 1.0
+
+        if keyboard.is_pressed("left"):
+            steer_manual = 6  # 6 degrees left
+
+        if keyboard.is_pressed("right"):
+            steer_manual = -6 # 6 degrees right
+
+        if keyboard.is_pressed("x"):
+            print_in_color("Exitting...", "green")
+            break
+
+        # --- Step the Simulator ---
+        # We get vehicle_state, images, and the new ground-truth 'info' dict
+        vehicle_state, main_road_image, wide_road_image, bool_out_of_lane = \
+            metadrive_gym.step(steer_manual, throttle_manual, brake_manual, bool_reset=False)
+
+        # --- Prepare CarState Data (for UI display) ---
+        vEgo = math.sqrt(vehicle_state.velocity.x**2 + vehicle_state.velocity.y**2)
+        aEgo = (vEgo - prev_vEgo) / delta_t
+        prev_vEgo = vEgo
+
+        car_state_dict = {
+            "vEgo": vEgo,
+            "aEgo": aEgo,
+            "steeringAngleDeg": vehicle_state.steering_angle,
+            "vCruise": 0.0, # We're not using OP cruise
+            "standstill": bool(vEgo < 1.0),
+            "brakePressed": bool(brake_manual >= 0.1),
+            "cruiseState": {"enabled": False, "standstill": bool(vEgo < 1.0), },
+        }
+
+        # ____________________________________________________________________ #
+        # ____________________________________________________________________ #
+
+        # --- Create Ground Truth Centerline Path (Using get_points()) ---
+
+        # Get the vehicle's current lane object
+        agent_lane = metadrive_gym.env.vehicle.lane
+
+        # Get the centerline points (these are in world coordinates)
+        # We call the get_points() method, sampling every 5 meters.
+
+        agent_centerline_points = None
+
+
+        # FIX: Check lane type and get points based on the correct API
+        if isinstance(agent_lane, CircularLane):
+            # For curves, we must manually sample points along the arc
+            agent_centerline_points = []
+            num_segments = 20
+            for i in range(num_segments + 1):
+                phase = agent_lane.start_phase + (agent_lane.end_phase - agent_lane.start_phase) * (i / num_segments)
+                x = agent_lane.center[0] + agent_lane.radius * math.cos(phase)
+                y = agent_lane.center[1] + agent_lane.radius * math.sin(phase)
+                agent_centerline_points.append((x, y))
+        elif isinstance(agent_lane, StraightLane):
+            # For straights, we just get the start and end
+            agent_centerline_points = [agent_lane.start, agent_lane.end]
+
+        if agent_centerline_points is not None and len(agent_centerline_points) > 1:
+            car_x_world = vehicle_state.position[0]
+            car_y_world = vehicle_state.position[1]
+            heading_rad = vehicle_state.heading_theta # Now available!
+
+            sin_h = math.sin(heading_rad)
+            cos_h = math.cos(heading_rad)
+
+            path_x_fwd = []
+            path_y_left = []
+
+            # Convert world points to vehicle's local (OpenPilot) coordinate system
+            for point_world in agent_centerline_points:
+                dx = point_world[0] - car_x_world
+                dy = point_world[1] - car_y_world
+
+                # World (X-right, Y-fwd) to OpenPilot (X-fwd, Y-left)
+                x_fwd = dx * cos_h + dy * sin_h
+                y_left = dx * sin_h - dy * cos_h
+
+                path_x_fwd.append(x_fwd)
+                path_y_left.append(y_left)
+
+            # Use run_planner.simulate_object (which is just a dict wrapper)
+            # to create a path object that ui_helpers.plot_model can understand
+            gt_path_dict = {
+                "x": np.array(path_x_fwd),
+                "y": np.array(path_y_left),
+                "z": np.zeros(len(path_x_fwd))
+            }
+            gt_path_obj = run_planner.simulate_object(gt_path_dict)
+
+        # ____________________________________________________________________ #
+        # ____________________________________________________________________ #
+
+        # --- Draw Overlays ---
+
+        # 1. Draw the ground truth path
+        if gt_path_obj is not None:
+            print_in_color(f"[metadrive_gym.py] path overlay", "green")
+
+            # We call plot_model directly from ui_helpers
+            ui_helpers.plot_model(
+                main_road_image, 
+                ui_overlay.camera_calibration, 
+                plan_positions=gt_path_obj,  # This will be drawn in CYAN
+                mpc_plan_positions=None      # We pass None for the red MPC path
+            )
+        else:
+            print_in_color(f"[metadrive_gym.py] path not present", "red")
+
+        # 2. Draw the ground truth text values
+        # We'll "hack" the CarControl_dict to pass our ground truth values
+        # to the UI text display.
+        CarControl_dict = {
+            "enabled": False, 
+            "actuators": { 
+                "steeringAngleDeg": 0.0,
+                "accel": 0.0,
+            } 
+        }
+        # Use desire_str to label our hacked values
+        #desire_str = f"GT SteerErr: {heading_err_deg:6.2f} deg | GT LatOff: {lat_offset:6.2f} m"
+
+        ui_overlay.overlay_control_values(
+            main_road_image, 
+            frame_i, 
+            car_state_dict, 
+            CarControl_dict, 
+            desire_str="", 
+            left_blinker=False, 
+            right_blinker=False
+        )
+
+        # --- Write to Shared Memory for Display ---
+        if BOOL_WRITE_SHARED_MEM:
+            rgba_frame = cv2.cvtColor(main_road_image, cv2.COLOR_RGB2RGBA)
+            shared_mem_camera_rgba.write(rgba_frame, frame_i)
+
+        # --- Print to Console ---
+        print(f"STEP {frame_i}: Vel={vEgo*2.23:.1f} MPH, SteerIn={steer_manual:.1f} deg")
+
+        frame_i += 1
 
 if __name__ == "__main__":
-    run_metadrive()
+    run_metadrive2()
